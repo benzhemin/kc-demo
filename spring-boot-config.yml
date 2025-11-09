@@ -1,0 +1,34 @@
+# application.yml for Spring Boot Microservice with Keycloak
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Option 1: Remote validation (calls Keycloak for validation)
+          issuer-uri: http://keycloak:8080/auth/realms/myrealm
+          
+          # Option 2: Local validation (downloads JWKS and validates locally)
+          # jwk-set-uri: http://keycloak:8080/auth/realms/myrealm/protocol/openid-connect/certs
+
+# Keycloak adapter configuration (alternative approach)
+keycloak:
+  realm: myrealm
+  auth-server-url: http://keycloak:8080/auth
+  ssl-required: external
+  resource: my-microservice
+  bearer-only: true
+  security-constraints:
+    - security-collections:
+        - patterns:
+            - /api/*
+      auth-roles:
+        - user
+  # Policy enforcer configuration
+  policy-enforcer:
+    enforcement-mode: ENFORCING
+
+# Logging for debugging
+logging:
+  level:
+    org.springframework.securityoauth2: debug
+    org.keycloak: debug

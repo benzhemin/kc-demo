@@ -1,0 +1,43 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: jwt-validation-demo
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # For LOCAL validation with asymmetric key (RS256)
+          # In production, replace with actual Keycloak URLs
+          issuer-uri: ${JWT_ISSUER_URI:https://keycloak.example.com/auth/realms/myrealm}
+          jwk-set-uri: ${JWT_JWK_SET_URI:https://keycloak.example.com/auth/realms/myrealm/protocol/openid-connect/certs}
+
+        opaquetoken:
+          # For REMOTE validation (token introspection)
+          introspection-uri: ${INTROSPECTION_URI:https://keycloak.example.com/auth/realms/myrealm/protocol/openid-connect/token/introspect}
+          client-id: ${OAUTH_CLIENT_ID:my-app}
+          client-secret: ${OAUTH_CLIENT_SECRET:your-client-secret}
+
+# Application configuration
+app:
+  security:
+    # Validation mode: LOCAL, REMOTE, or HYBRID
+    validation-mode: ${VALIDATION_MODE:LOCAL}
+
+    # Hybrid mode settings
+    hybrid:
+      remote-validation-enabled: ${REMOTE_VALIDATION_ENABLED:false}
+      cache-expiry-seconds: ${CACHE_EXPIRY:300}
+
+    # Mock mode for testing without real Keycloak
+    mock-enabled: ${MOCK_MODE:true}
+    mock-secret: ${MOCK_SECRET:mySecretKeyForJWT2025mustBe32bytes!}
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.example.jwtvalidation: DEBUG
