@@ -1,0 +1,65 @@
+sequenceDiagram
+    participant User as User Browser
+    participant Client as Client Application
+    participant Gateway as Spring Cloud Gateway
+    participant Resource as Resource Server
+    participant Keycloak as Keycloak Server
+
+    Note over User,Keycloak: Initial Request
+    User->>Client: 1. Access protected resource
+    Client->>Client: 2. Check session/token
+    Client->>Gateway: 3. HTTP Request (no token)
+    Gateway->>Gateway: 4. Check authentication
+    Gateway-->>Client: 5. 401/302 Redirect to login
+    
+    Note over User,Keycloak: Authorization Code Flow
+    Client->>User: 6. Redirect to Keycloak login
+    User->>Keycloak: 7. GET /auth/realms/{realm}/protocol/openid-connect/auth<br/>+ response_type=code<br/>+ client_id<br/>+ redirect_uri<br/>+ scope<br/>+ state<br/>+ code_challenge (PKCE)
+    
+    Keycloak->>User: 8. Display login form
+    User->>Keycloak: 9. Submit credentials (POST)
+    Keycloak->>Keycloak: 10. Validate credentials
+    Keycloak->>Keycloak: 11. Create session
+    
+    Note over User,Keycloak: Token Exchange
+    Keycloak->>User: 12. Redirect to client with code<br/>redirect_uri?code={code}&state={state}
+    User->>Client: 13. Follow redirect with code
+    Client->>Keycloak: 14. POST /auth/realms/{realm}/protocol/openid-connect/token<br/>+ grant_type=authorization_code<br/>+ code<br/>+ redirect_uri<br/>+ client_id<br/>+ client_secret<br/>+ code_verifier (PKCE)
+    
+    Keycloak->>Keycloak: 15. Validate code & client
+    Keycloak-->>Client: 16. Return tokens<br/>{ access_token, refresh_token, id_token }
+    Client->>Client: 17. Store tokens (session/cookie)
+    
+    Note over User,Keycloak: Authenticated Request
+    Client->>Gateway: 18. HTTP Request<br/>Authorization: Bearer {access_token}
+    Gateway->>Gateway: 19. Extract & validate token
+    
+    alt Token validation at Gateway
+        Gateway->>Keycloak: 20a. GET /auth/realms/{realm}/protocol/openid-connect/userinfo<br/>Authorization: Bearer {token}
+        Keycloak-->>Gateway: 21a. User info response
+    else Local validation (with JWK)
+        Gateway->>Keycloak: 20b. GET /auth/realms/{realm}/protocol/openid-connect/certs<br/>(cached)
+        Keycloak-->>Gateway: 21b. JWK Set
+        Gateway->>Gateway: 22b. Verify JWT signature & claims
+    end
+    
+    Gateway->>Gateway: 23. Add user context to request
+    Gateway->>Resource: 24. Forward request with token
+    Resource->>Resource: 25. Validate token (optional)
+    Resource-->>Gateway: 26. Response
+    Gateway-->>Client: 27. Response
+    Client-->>User: 28. Display content
+    
+    Note over User,Keycloak: Token Refresh (when expired)
+    Client->>Keycloak: 29. POST /auth/realms/{realm}/protocol/openid-connect/token<br/>+ grant_type=refresh_token<br/>+ refresh_token<br/>+ client_id<br/>+ client_secret
+    Keycloak->>Keycloak: 30. Validate refresh token
+    Keycloak-->>Client: 31. New access_token & refresh_token
+    
+    Note over User,Keycloak: Logout Flow
+    User->>Client: 32. Initiate logout
+    Client->>Keycloak: 33. GET /auth/realms/{realm}/protocol/openid-connect/logout<br/>+ id_token_hint<br/>+ post_logout_redirect_uri
+    Keycloak->>Keycloak: 34. Invalidate session
+    Keycloak->>User: 35. Redirect to post_logout_redirect_uri
+    User->>Client: 36. Follow redirect
+    Client->>Client: 37. Clear local session/tokens
+    Client-->>User: 38. Display logged out page
